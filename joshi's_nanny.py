@@ -120,7 +120,11 @@ def draw_boxes(image, boxes, class_names, scores, max_boxes=100, min_score=0.3):
   global person_num
 
   for i in range(1,3):
+
       class_12 = None
+      isBaby = 0
+      color = "rgb(0, 0, 0)" # default    
+        
       for j in range(max_boxes):
         if scores[0][j] >= min_score:
             if class_names[0][j] == 1. and i == 1.:
@@ -188,7 +192,7 @@ saved_model_path = r'.\joshi_model_v3\saved_model'
 detector = hub.load(saved_model_path)
 
 # Capture video feed from webcam (0), use video filename here for pre-recorded video
-video = cv2.VideoCapture(r'.\joshi_with_mom.mp4')
+video = cv2.VideoCapture(r'.\Camera_2020-11-06_13_25.mp4') # Put the name of your sample video here
 #video = cv2.VideoCapture(0)
 
 df = pandas.DataFrame(columns=["Start", "End"])  # Pandas dataframe for exporting timestamps to CSV file
