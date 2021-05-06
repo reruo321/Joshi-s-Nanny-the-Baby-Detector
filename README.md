@@ -1,2 +1,4 @@
 # Joshi-s-Nanny-the-Baby-Detector
-video detector for babies
+Video Detector for Babies
+
+You can find some samples for this application from here: https://www.dropbox.com/sh/n655h6v7ew7zwth/AACZsjpkaPavbKeZ0BDM0_KNa?dl=0
