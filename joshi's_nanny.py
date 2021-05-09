@@ -1,4 +1,4 @@
-import cv2, pandas
+import cv2
 import tensorflow as tf
 
 import tensorflow_hub as hub
@@ -10,8 +10,12 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 import time
+import tkinter
+import tkinter.font
+from tkinter import filedialog
 
 motion_frame = []
+
 baby_num = 0
 person_num = 0
 frame_num = 0
@@ -28,44 +32,46 @@ def box_motion_detector(image, left, right, top, bottom):
     gray = cv2.cvtColor(img_area, cv2.COLOR_RGB2GRAY)
     gray = cv2.GaussianBlur(gray, (21,21),0)
 
-    motion_frame.append(gray)
+    baby_num = baby_num + 1
 
-    if motion_frame[baby_num - 1].shape[0] != motion_frame[baby_num].shape[0] or motion_frame[baby_num - 1].shape[1] != motion_frame[baby_num].shape[1]:
-        if baby_num > 0:
-            if abs(motion_frame[baby_num - 1].shape[0] - motion_frame[baby_num].shape[0]) >= 5 or abs(motion_frame[baby_num - 1].shape[1] - motion_frame[baby_num].shape[1]) >= 5:
-                baby_num = baby_num + 1
+    if baby_num > 1:
+        motion_frame.append(gray)
+        if motion_frame[0].shape[0] != motion_frame[1].shape[0] or motion_frame[0].shape[1] != motion_frame[1].shape[1]:
+            if abs(motion_frame[0].shape[0] - motion_frame[1].shape[0]) >= 5 or abs(motion_frame[0].shape[1] - motion_frame[1].shape[1]) >= 5:
                 baby_moving_num = baby_moving_num + 1
+                motion_frame.clear()
+                motion_frame.append(gray)
                 return 1
             else:
-                baby_num = baby_num + 1
+                motion_frame.clear()
+                motion_frame.append(gray)
                 return 0
         else:
-            baby_num = baby_num + 1
-            return 0
+                delta = cv2.absdiff(motion_frame[0], motion_frame[1], gray)
+                thresh = cv2.threshold(delta, 30, 255, cv2.THRESH_BINARY)[1]
+                thresh = cv2.dilate(thresh, None, iterations=2)
+                (cnts,_) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+                motion_frame.clear()
+                motion_frame.append(gray)
+
+                for contour in cnts:
+                    if cv2.contourArea(contour) < 100:
+                        return 0
+                    else:
+                        baby_moving_num = baby_moving_num + 1
+                        return 1
     else:
-        if baby_num > 0:
-            delta = cv2.absdiff(motion_frame[baby_num - 1], motion_frame[baby_num], gray)
-            thresh = cv2.threshold(delta, 30, 255, cv2.THRESH_BINARY)[1]
-            thresh = cv2.dilate(thresh, None, iterations=2)
-            (cnts,_) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            baby_num = baby_num + 1
-
-            for contour in cnts:
-                if cv2.contourArea(contour) < 100:
-                    return 0
-                else:
-                    baby_moving_num = baby_moving_num + 1
-                    return 1
-        else:
-            baby_num = baby_num + 1
-            return 0
-    return 0
+        motion_frame.append(gray)
+        return 0
 
 def display_image(image):
+  global frame_num
+  # release some memory from image buffer
   fig = plt.figure(figsize=(20, 15))
   plt.grid(False)
+  plt.clf()
+  plt.close()
 
 def draw_bounding_box_on_image(image,
                                ymin,
@@ -84,7 +90,7 @@ def draw_bounding_box_on_image(image,
                                 ymin * im_height, ymax * im_height)
 
   if isBaby == 1:
-    if box_motion_detector(image, left, right, top, bottom) > 0:
+    if box_motion_detector(image, left, right, top, bottom):
       color = "rgb(255, 0, 0)" # moving_baby
 
   draw.line([(left, top), (left, bottom), (right, bottom), (right, top),
@@ -113,7 +119,7 @@ def draw_bounding_box_on_image(image,
     text_bottom -= text_height - 2 * margin
 
 
-def draw_boxes(image, boxes, class_names, scores, max_boxes=100, min_score=0.3):
+def draw_boxes(image, boxes, class_names, scores, max_boxes=100, min_score=0.4):
   """Overlay labeled boxes on an image with formatted scores and label names."""
 
   font = ImageFont.load_default()
@@ -123,8 +129,8 @@ def draw_boxes(image, boxes, class_names, scores, max_boxes=100, min_score=0.3):
 
       class_12 = None
       isBaby = 0
-      color = "rgb(0, 0, 0)" # default    
-        
+      color = "rgb(0, 0, 0)" # default
+
       for j in range(max_boxes):
         if scores[0][j] >= min_score:
             if class_names[0][j] == 1. and i == 1.:
@@ -159,8 +165,9 @@ def draw_boxes(image, boxes, class_names, scores, max_boxes=100, min_score=0.3):
   return image
 
 def load_img(frame_img):
-  frame_img = tf.convert_to_tensor(frame_img)
-  return frame_img
+  tf_frame_img = tf.convert_to_tensor(frame_img)
+  del frame_img
+  return tf_frame_img
 
 def run_detector(detector, img):
   global baby_num, baby_moving_num, person_num, frame_num
@@ -174,7 +181,6 @@ def run_detector(detector, img):
 
   result = {key:value.numpy() for key,value in result.items()}
 
-  print("Found %d objects." % len(result["detection_scores"]))
   print("Inference time: ", end_time-start_time)
 
   image_with_boxes = draw_boxes(
@@ -183,23 +189,43 @@ def run_detector(detector, img):
 
   frame_num = frame_num + 1
   display_image(image_with_boxes)
-  print(str(baby_num), str(baby_moving_num), str(person_num), str(frame_num))
+  del result
+  del converted_img
+  print('Frame Info:\nBaby = {} | Moving_Baby = {} | Person = {} | Total = {}\n'.format(str(baby_num), str(baby_moving_num), str(person_num), str(frame_num)))
 
-
-# reference background frame against which to compare the presence of object/motion
-first_frame = None
 saved_model_path = r'.\joshi_model_v3\saved_model'
 detector = hub.load(saved_model_path)
 
-# Capture video feed from webcam (0), use video filename here for pre-recorded video
-video = cv2.VideoCapture(r'.\Camera_2020-11-06_13_25.mp4') # Put the name of your sample video here
-#video = cv2.VideoCapture(0)
+video_flag = 0
 
-df = pandas.DataFrame(columns=["Start", "End"])  # Pandas dataframe for exporting timestamps to CSV file
+def load_video():
+    global video_flag
+    video_flag = filedialog.askopenfilename(initialdir = '/', title='Select Video File', filetypes=(('MP4', '*.mp4'), ('All files', '*.*')))
+    scr.destroy()
 
-# the following loop continuously captures and displays the video feed until user prompts an exit by pressing Q
+def load_webcam():
+    global video_flag
+    video_flag = 0
+    scr.destroy()
+
+scr = tkinter.Tk()
+scr.title("Joshi's Nanny")
+scr.geometry("640x480")
+font = tkinter.font.Font(size=50)
+vid = tkinter.Button(scr, text='Load Video', overrelief="solid", background='orange', font=font, command=load_video, repeatdelay=1000)
+webc = tkinter.Button(scr, text='Load Webcam', overrelief="solid", background='green', font=font, fg='white', command=load_webcam, repeatdelay=1000)
+vid.pack(fill='both', expand=True)
+webc.pack(fill='both', expand=True)
+
+scr.mainloop()
+
+video = cv2.VideoCapture(video_flag)
+
+#    video = cv2.VideoCapture(r'.\joshi_sleeping.mp4')
+#    video = cv2.VideoCapture(0)
+
 while True:
-    # the read function gives two outputs. The check is a boolean function that returns if the video is being read
+
     check, frame = video.read()
 
     if not check:
@@ -210,14 +236,10 @@ while True:
 
     run_detector(detector, frame_img)
 
-    # displays the continous feed with the green frame for any foreign object in frame
     cv2.imshow("Joshi's Nanny", frame_img)
 
     # picks up the key press Q and exits when pressed
     key = cv2.waitKey(1)
-
-# Export to csv
-df.to_csv("Times.csv")
 
 # Closes all windows
 cv2.destroyAllWindows()
