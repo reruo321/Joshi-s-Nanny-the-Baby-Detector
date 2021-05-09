@@ -238,9 +238,6 @@ while True:
 
     cv2.imshow("Joshi's Nanny", frame_img)
 
-    # picks up the key press Q and exits when pressed
-    key = cv2.waitKey(1)
-
 # Closes all windows
 cv2.destroyAllWindows()
 
