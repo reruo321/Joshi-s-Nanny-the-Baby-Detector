@@ -50,7 +50,7 @@ def box_motion_detector(image, left, right, top, bottom):
                 delta = cv2.absdiff(motion_frame[0], motion_frame[1], gray)
                 thresh = cv2.threshold(delta, 30, 255, cv2.THRESH_BINARY)[1]
                 thresh = cv2.dilate(thresh, None, iterations=2)
-                (cnts,_) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                (_,cnts,_) = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 motion_frame.clear()
                 motion_frame.append(gray)
@@ -71,6 +71,7 @@ def display_image(image):
   fig = plt.figure(figsize=(20, 15))
   plt.grid(False)
   plt.clf()
+  cv2.waitKey(1)
   plt.close()
 
 def draw_bounding_box_on_image(image,
